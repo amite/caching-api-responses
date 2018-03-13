@@ -50,17 +50,18 @@ export default class App extends React.Component {
   async componentDidMount() {
     let url = `http://jsonplaceholder.typicode.com/photos`;
 
+    let photos;
     let photosFromCache = await AsyncStorage.getItem(url);
     if (photosFromCache) {
       Reactotron.log("fetching photos from cache");
-      this.setState({ photos: JSON.parse(photosFromCache).slice(0, 5) });
+      photos = JSON.parse(photosFromCache);
     } else {
       Reactotron.log("fetching photos from network");
       const fetchedPhotos = await fetch(url);
-      const photos = await fetchedPhotos.json();
+      photos = await fetchedPhotos.json();
       await AsyncStorage.setItem(url, JSON.stringify(photos));
-      this.setState({ photos: photos.slice(0, 5) });
     }
+    this.setState({ photos: photos.slice(0, 5) });
   }
 
   renderPhotos = photo => {
