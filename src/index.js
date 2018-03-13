@@ -1,4 +1,7 @@
+import "../ReactotronConfig";
 import React from "react";
+import Reactotron from "reactotron-react-native";
+
 import {
   StyleSheet,
   Text,
@@ -6,12 +9,38 @@ import {
   ScrollView,
   Image,
   ImageBackground,
-  Dimensions
+  Dimensions,
+  AsyncStorage
 } from "react-native";
 
 const dimensions = Dimensions.get("window");
 const imageHeight = Math.round(dimensions.width * 9 / 16);
-const imageWidth = dimensions.widt;
+const imageWidth = dimensions.width;
+
+const cachedFetch = (url, options) => {
+  // Use the URL as the cache key to sessionStorage
+  let cacheKey = url;
+  return fetch(url, options).then(response => {
+    // let's only store in cache if the content-type is
+    // JSON or something non-binary
+    let ct = response.headers.get("Content-Type");
+    if (ct && (ct.match(/application\/json/i) || ct.match(/text\//i))) {
+      // There is a .json() instead of .text() but
+      // we're going to store it in AsyncStorage as
+      // string anyway.
+      // If we don't clone the response, it will be
+      // consumed by the time it's returned. This
+      // way we're being un-intrusive.
+      response
+        .clone()
+        .text()
+        .then(content => {
+          AsyncStorage.setItem(cacheKey, content);
+        });
+    }
+    return response;
+  });
+};
 
 export default class App extends React.Component {
   state = {
@@ -19,11 +48,19 @@ export default class App extends React.Component {
   };
 
   async componentDidMount() {
-    const fetchedPhotos = await fetch(
-      `http://jsonplaceholder.typicode.com/photos`
-    );
-    const photos = await fetchedPhotos.json();
-    this.setState({ photos });
+    let url = `http://jsonplaceholder.typicode.com/photos`;
+
+    let photosFromCache = await AsyncStorage.getItem(url);
+    if (photosFromCache) {
+      Reactotron.log("fetching photos from cache");
+      this.setState({ photos: JSON.parse(photosFromCache).slice(0, 5) });
+    } else {
+      Reactotron.log("fetching photos from network");
+      const fetchedPhotos = await fetch(url);
+      const photos = await fetchedPhotos.json();
+      await AsyncStorage.setItem(url, JSON.stringify(photos));
+      this.setState({ photos: photos.slice(0, 5) });
+    }
   }
 
   renderPhotos = photo => {
@@ -45,7 +82,7 @@ export default class App extends React.Component {
         <Text style={{ marginBottom: 20, alignSelf: "center" }}>
           Remote photos
         </Text>
-        {this.state.photos.slice(0, 20).map(this.renderPhotos)}
+        {this.state.photos.map(this.renderPhotos)}
       </ScrollView>
     );
   }
